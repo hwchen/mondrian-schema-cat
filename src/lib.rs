@@ -1,4 +1,4 @@
-#[recursion_limit = "1024"]
+#![recursion_limit = "1024"]
 // A simple concatenation utility for fragments of
 // Mondrian schemas.
 //
@@ -43,16 +43,39 @@ const CUBE_TAG_CLOSE: &str = "</Cube";
 const DIM_TAG_OPEN: &str = "<Dimension";
 const DIM_TAG_CLOSE: &str = "</Dimension";
 
-// Get the Schema name from one fragment
-pub fn get_schema_name(schema: &str) -> Result<&str> {
-    Ok("")
+
+
+// Get shared dims from one fragment
+pub fn get_shared_dims() {}
+
+pub struct Fragment<'a> {
+    schema_name: Option<&'a str>,
+    shared_dims: Option<Vec<&'a str>>,
+    cubes: &'a str,
 }
 
-// Get Schema names from all fragments
-// and check for duplicates
+impl<'a> Fragment<'a> {
 
-// Get shared dims from one
-pub fn get_shared_dims() {}
+    /// Get the Schema name from one fragment
+    /// None if there's no Schema tags
+    /// Errors if there's multiple schema tags
+    /// TODO error if there's multiple name attributes
+    pub fn get_schema_name(fragment: &'a str) -> Result<Option<&'a str>> {
+        Ok(Some(""))
+    }
+
+    pub fn process_fragment(frag: &'a str) -> Fragment<'a> {
+    // Get Schema names from all fragments
+    // and check for non-duplicates. There should only be one name.
+    // Get shared Dim names from
+        Fragment {
+            schema_name: None,
+            shared_dims: None,
+            cubes: "",
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
