@@ -45,13 +45,10 @@ const DIM_TAG_CLOSE: &str = "</Dimension";
 
 
 
-// Get shared dims from one fragment
-pub fn get_shared_dims() {}
-
 pub struct Fragment<'a> {
     schema_name: Option<&'a str>,
-    shared_dims: Option<Vec<&'a str>>,
-    cubes: &'a str,
+    shared_dims: Vec<&'a str>,
+    cubes: Vec<&'a str>,
 }
 
 impl<'a> Fragment<'a> {
@@ -64,14 +61,25 @@ impl<'a> Fragment<'a> {
         Ok(Some(""))
     }
 
-    pub fn process_fragment(frag: &'a str) -> Fragment<'a> {
+    // Get shared dims from one fragment
+    pub fn get_shared_dims(fragment: &'a str) -> Result<Vec<&'a str>> {
+        Ok(vec![])
+    }
+
+    // Get cubes from one fragment
+    pub fn get_cubes(fragment: &'a str) -> Result<Vec<&'a str>> {
+        Ok(vec![])
+    }
+
+
+    pub fn process_fragment(fragment: &'a str) -> Fragment<'a> {
     // Get Schema names from all fragments
     // and check for non-duplicates. There should only be one name.
     // Get shared Dim names from
         Fragment {
             schema_name: None,
-            shared_dims: None,
-            cubes: "",
+            shared_dims: vec![],
+            cubes: vec![],
         }
     }
 }
