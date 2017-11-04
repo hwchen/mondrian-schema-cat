@@ -36,12 +36,11 @@ mod error;
 use error::*;
 
 // I assume tags follow the convention of CamelCase
-const SCHEMA_TAG_OPEN: &str = "<Schema";
-const SCHEMA_TAG_CLOSE: &str = "</Schema";
+const SCHEMA_TAG_OPEN: &str = r#"<Schema name=""#;
 const CUBE_TAG_OPEN: &str = "<Cube";
-const CUBE_TAG_CLOSE: &str = "</Cube";
+const CUBE_TAG_CLOSE: &str = "</Cube>";
 const DIM_TAG_OPEN: &str = "<Dimension";
-const DIM_TAG_CLOSE: &str = "</Dimension";
+const DIM_TAG_CLOSE: &str = "</Dimension>";
 
 
 
@@ -55,19 +54,29 @@ impl<'a> Fragment<'a> {
 
     /// Get the Schema name from one fragment
     /// None if there's no Schema tags
-    /// Errors if there's multiple schema tags
-    /// TODO error if there's multiple name attributes
-    pub fn get_schema_name(fragment: &'a str) -> Result<Option<&'a str>> {
-        Ok(Some(""))
+    /// Takes first schema tag and first name attr
+    fn get_schema_name(fragment: &'a str) -> Option<&'a str> {
+        //
+        fragment
+            .find(SCHEMA_TAG_OPEN)
+            .map(|i| i + SCHEMA_TAG_OPEN.len())
+            .and_then(|i| {
+                fragment[i..]
+                    .find('\"')
+                    .and_then(|j| {
+                        fragment.get(i..i+j)
+                    })
+            })
+
     }
 
     // Get shared dims from one fragment
-    pub fn get_shared_dims(fragment: &'a str) -> Result<Vec<&'a str>> {
+    fn get_shared_dims(fragment: &'a str) -> Result<Vec<&'a str>> {
         Ok(vec![])
     }
 
     // Get cubes from one fragment
-    pub fn get_cubes(fragment: &'a str) -> Result<Vec<&'a str>> {
+    fn get_cubes(fragment: &'a str) -> Result<Vec<&'a str>> {
         Ok(vec![])
     }
 
@@ -87,9 +96,13 @@ impl<'a> Fragment<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_get_schema_name() {
+        let fragment = r#"<Schema name="testname"></Schema>"#;
+        assert_eq!(Fragment::get_schema_name(fragment), Some("testname"));
+        let fragment = r#"<Cube name="testname"></Cube>"#;
+        assert_eq!(Fragment::get_schema_name(fragment), None);
     }
 }
