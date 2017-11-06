@@ -1,7 +1,7 @@
-# Mondrian Schema Cat
+# Mondrian Schema Cat (moncat)
 A utility for concatenating together fragments of a Mondrian schema.
 
-Takes an arbitrary number of schema fragments
+Takes an arbitrary number of schema fragments containing:
 - schema (containing cubes and shared dims)
 - shared dims
 - cubes

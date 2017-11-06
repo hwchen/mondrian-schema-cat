@@ -143,9 +143,24 @@ impl<'a> Fragment<'a> {
     }
 }
 
-// Get Schema names from all fragments
-// and check for non-duplicates (there should only
-// be one schema name).
+/// Convenience method for turning unprocessed fragments
+/// into
+pub fn fragments_to_schema(fragments: Vec<&str>) -> Result<String> {
+    // Get Schema names from all fragments
+    // and check for non-duplicates (there should only
+    // be one schema name). Error is returned if
+    // there's more than one schema name
+    //
+    // Otherwise, process all fragments, then iterate through
+    // 2 passes to first push all shared dims, then
+    // to push all cubes.
+
+    // schema name handling
+    if !fragments.iter().all(|&name| ) {
+        return Err("More than one schema name found".into());
+    }
+
+}
 
 #[cfg(test)]
 mod tests {
