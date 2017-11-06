@@ -34,7 +34,7 @@
 #[macro_use]
 extern crate error_chain;
 
-mod error;
+pub mod error;
 
 use error::*;
 
@@ -145,7 +145,7 @@ impl<'a> Fragment<'a> {
 
 /// Convenience method for turning unprocessed fragments
 /// into one schema
-pub fn fragments_to_schema(fragments: Vec<&str>) -> Result<String> {
+pub fn fragments_to_schema(fragments: &[String]) -> Result<String> {
     // Get Schema names from all fragments
     // and check for non-duplicates (there should only
     // be one schema name). Error is returned if
@@ -157,8 +157,8 @@ pub fn fragments_to_schema(fragments: Vec<&str>) -> Result<String> {
 
     // process fragments
     let fragments: Vec<_> = fragments
-        .into_iter()
-        .map(Fragment::process_fragment).collect();
+        .iter()
+        .map(|s| Fragment::process_fragment(&s)).collect();
 
     // schema name handling
     let mut schema_name = None;
@@ -289,37 +289,37 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_fragments_to_schema_empty() {
-        fragments_to_schema(vec![""]).unwrap();
+        fragments_to_schema(&vec!["".to_owned()]).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_fragments_to_schema_no_schema() {
-        fragments_to_schema(vec!["<Cube></Cube>"]).unwrap();
+        fragments_to_schema(&vec!["<Cube></Cube>".to_owned()]).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_fragments_to_schema_different_names() {
-        fragments_to_schema(vec!["<Schema name=\"a\"></Schema>", "<Schema name=\"b\"></Schema>"]).unwrap();
+        fragments_to_schema(&vec!["<Schema name=\"a\"></Schema>".to_owned(), "<Schema name=\"b\"></Schema>".to_owned()]).unwrap();
     }
 
     #[test]
     fn test_fragments_to_schema() {
         // First make sure that feeding through just one works
-        let fragment = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
+        let fragment = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
         let fragments = vec![fragment];
         assert_eq!(
-            fragments_to_schema(fragments).unwrap(),
+            fragments_to_schema(&fragments).unwrap(),
             "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube>\n</Schema>"
         );
 
         // Now multiple
-        let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
-        let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#;
+        let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
         let fragments = vec![f1, f2];
         assert_eq!(
-            fragments_to_schema(fragments).unwrap(),
+            fragments_to_schema(&fragments).unwrap(),
             "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Dimension name=\"shareddim2\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
         );
     }
