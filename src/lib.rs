@@ -144,7 +144,7 @@ impl<'a> Fragment<'a> {
 }
 
 /// Convenience method for turning unprocessed fragments
-/// into
+/// into one schema
 pub fn fragments_to_schema(fragments: Vec<&str>) -> Result<String> {
     // Get Schema names from all fragments
     // and check for non-duplicates (there should only
@@ -155,11 +155,51 @@ pub fn fragments_to_schema(fragments: Vec<&str>) -> Result<String> {
     // 2 passes to first push all shared dims, then
     // to push all cubes.
 
+    // process fragments
+    let fragments: Vec<_> = fragments
+        .into_iter()
+        .map(Fragment::process_fragment).collect();
+
     // schema name handling
-    if !fragments.iter().all(|&name| ) {
-        return Err("More than one schema name found".into());
+    let mut schema_name = None;
+    for frag in &fragments {
+        if let Some(current_name) = frag.schema_name {
+            if let Some(stored_name) = schema_name {
+                if stored_name != current_name {
+                    return Err("More than one schema name found".into());
+                }
+            } else {
+                schema_name = Some(current_name);
+            }
+        } else {
+            continue
+        }
     }
 
+    // now push onto final str
+    let mut final_schema = String::new();
+    final_schema.push_str("<Schema name=\"");
+    if let Some(name) = schema_name {
+        final_schema.push_str(name);
+        final_schema.push_str("\">\n");
+    } else {
+        return Err("No schema name found".into());
+    }
+
+    for frag in &fragments {
+        if let Some(shared_dims) = frag.shared_dims {
+            final_schema.push_str(shared_dims);
+        }
+    }
+    for frag in &fragments {
+        if let Some(cubes) = frag.cubes {
+            final_schema.push_str(cubes);
+        }
+    }
+
+    final_schema.push_str("\n</Schema>");
+
+    Ok(final_schema)
 }
 
 #[cfg(test)]
@@ -243,6 +283,44 @@ mod tests {
                 shared_dims: Some(r#"<Dimension name="shareddim"></Dimension>"#),
                 cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
             }
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fragments_to_schema_empty() {
+        fragments_to_schema(vec![""]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fragments_to_schema_no_schema() {
+        fragments_to_schema(vec!["<Cube></Cube>"]).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_fragments_to_schema_different_names() {
+        fragments_to_schema(vec!["<Schema name=\"a\"></Schema>", "<Schema name=\"b\"></Schema>"]).unwrap();
+    }
+
+    #[test]
+    fn test_fragments_to_schema() {
+        // First make sure that feeding through just one works
+        let fragment = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
+        let fragments = vec![fragment];
+        assert_eq!(
+            fragments_to_schema(fragments).unwrap(),
+            "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube>\n</Schema>"
+        );
+
+        // Now multiple
+        let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
+        let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#;
+        let fragments = vec![f1, f2];
+        assert_eq!(
+            fragments_to_schema(fragments).unwrap(),
+            "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Dimension name=\"shareddim2\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
         );
     }
 }
