@@ -91,7 +91,6 @@ impl<'a> Fragment<'a> {
                     fragment[i..]
                         .find(CUBE_TAG_OPEN)
                         .and_then(|j| {
-                            println!("{}, {}, {}", i, j, first_cube_idx);
                             // if this cube tag idx is the
                             // first cube idx, then it means that
                             // the dims are shared, so get frag.
