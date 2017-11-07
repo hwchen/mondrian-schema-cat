@@ -10,7 +10,7 @@ extern crate walkdir;
 use clap::{App, Arg};
 use mondrian_schema_cat::fragments_to_schema;
 use std::io::Read;
-use std::fs::File;
+use std::fs::{self, File};
 use walkdir::{DirEntry, WalkDir};
 
 mod error {
@@ -76,6 +76,7 @@ fn run() -> Result<()> {
 
     let res = fragments_to_schema(fragment_strs.as_slice())?;
 
+    // TODO set the output
     println!("{}", res);
     Ok(())
 }
@@ -88,7 +89,9 @@ fn get_fragment_paths_dir(dir_path: &str) -> Result<Vec<String>> {
             .unwrap_or(false)
     }
 
-    // TODO check if it is a directory
+    if !fs::metadata(dir_path)?.is_dir() {
+        return Err("Path is not a directory".into());
+    }
 
     let mut res = Vec::new();
     let walker = WalkDir::new(dir_path).into_iter();
