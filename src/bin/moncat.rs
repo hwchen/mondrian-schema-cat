@@ -104,6 +104,7 @@ fn get_fragment_paths_dir(dir_path: &str) -> Result<Vec<String>> {
                 .unwrap_or(false)
         } else {
             // this is for directories
+            // to allow recursing into dir
             true
         }
     }
