@@ -9,7 +9,7 @@ extern crate walkdir;
 
 use clap::{App, Arg};
 use mondrian_schema_cat::fragments_to_schema;
-use std::io::Read;
+use std::io::{Read, Write, BufWriter};
 use std::fs::{self, File};
 use walkdir::{DirEntry, WalkDir};
 
@@ -76,8 +76,15 @@ fn run() -> Result<()> {
 
     let res = fragments_to_schema(fragment_strs.as_slice())?;
 
-    // TODO set the output
-    println!("{}", res);
+    match config.output_path {
+        Some(path) => {
+            let f = File::create(&path)?;
+            write(f, &res)?;
+        },
+        None => {
+            write(std::io::stdout(), &res)?;
+        }
+    }
     Ok(())
 }
 
@@ -152,4 +159,12 @@ fn get_cli_config() -> Config {
          dir_path: app_m.value_of("dir_path").map(|s| s.to_owned()),
          output_path: app_m.value_of("output_path").map(|s| s.to_owned()),
      }
+}
+
+fn write<W: Write>(wtr: W, schema: &str) -> Result<()> {
+    let mut wtr = BufWriter::new(wtr);
+
+    wtr.write_all(schema.as_bytes())?;
+    wtr.flush()?;
+    Ok(())
 }
