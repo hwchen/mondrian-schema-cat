@@ -7,7 +7,7 @@ extern crate error_chain;
 extern crate mondrian_schema_cat;
 extern crate walkdir;
 
-use clap::{App, Arg};
+use clap::{App, Arg, AppSettings};
 use mondrian_schema_cat::fragments_to_schema;
 use std::io::{Read, Write, BufWriter};
 use std::fs::{self, File};
@@ -96,13 +96,25 @@ fn get_fragment_paths_dir(dir_path: &str) -> Result<Vec<String>> {
             .unwrap_or(false)
     }
 
+    fn is_xml(entry: &DirEntry) -> bool {
+        if entry.file_type().is_file() {
+            entry.file_name()
+                .to_str()
+                .map(|s| s.ends_with(".xml"))
+                .unwrap_or(false)
+        } else {
+            // this is for directories
+            true
+        }
+    }
+
     if !fs::metadata(dir_path)?.is_dir() {
         return Err("Path is not a directory".into());
     }
 
     let mut res = Vec::new();
     let walker = WalkDir::new(dir_path).into_iter();
-    for entry in walker.filter_entry(|e| !is_hidden(e)) {
+    for entry in walker.filter_entry(|e| (!is_hidden(e)) && is_xml(e)) {
         let entry = entry?;
         if entry.file_type().is_file() {
             res.push(entry.path().to_str().expect("filepath is invalid str").to_owned())
@@ -123,6 +135,7 @@ fn get_cli_config() -> Config {
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
+        .setting(AppSettings::ArgRequiredElseHelp)
         .arg(Arg::with_name("arg_files")
             .takes_value(true)
             .value_name("PATH")
@@ -141,10 +154,19 @@ fn get_cli_config() -> Config {
             .takes_value(true)
             .value_name("PATH")
             .help("optional output path, otherwise stdout"))
-//        .after_help("fulltext search (`search` table subcommand):\n\
-//            \t- Currently implemented to use exact match.\n\
-//            \t- Case insensitive.\n\
-//            \t- Searches table name, and table id (no prefix or suffix). ")
+        .after_help("ABOUT:\n\
+            \tA utility for concatenating together fragments of a Mondrian schema.\n\
+            \n\
+            \tTakes an arbitrary number of schema fragments containing:\n\
+            \t- schema (containing cubes and shared dims)\n\
+            \t- shared dims\n\
+            \t- cubes\n\
+            \n\
+            \tand then concatenates the fragement sections in the correct\n\
+            \torder (schema wraps shared dims and then cubes, in that order).\n\
+            \n\
+            \tFragments can be any of the above three in any combination, but\n\
+            \teach fragment's internals must be in the same order as a full schema.")
         .get_matches();
 
     let arg_files = app_m.values_of("arg_files");
