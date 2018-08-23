@@ -318,13 +318,14 @@ mod tests {
     #[test]
     fn test_process_fragment() {
         let fragment = r#"<Schema name="testname">
-            <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
+            <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
         assert_eq!(
             Fragment::process_fragment(fragment),
             Fragment {
                 schema_name: Some("testname"),
                 shared_dims: Some(r#"<Dimension name="shareddim"></Dimension>"#),
                 cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
+                virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
             }
         );
     }
