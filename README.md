@@ -6,6 +6,7 @@ Takes an arbitrary number of schema fragments containing:
 - schema (containing cubes and shared dims)
 - shared dims
 - cubes
+- virtual cubes
 
 and then concatenates the fragement sections in the correct
 order (schema wraps shared dims and then cubes, in that order).
