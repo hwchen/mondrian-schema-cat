@@ -2,6 +2,7 @@
 authors = ["Walther Chen <walther.chen@gmail.com>"]
 name = "mondrian-schema-cat"
 version = "0.1.0"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 clap = "2.27.1"
