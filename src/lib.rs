@@ -51,6 +51,7 @@ const SCHEMA_TAG_OPEN: &str = r#"<Schema name=""#;
 const SCHEMA_TAG_CLOSE: &str = r#"</Schema>"#;
 const CUBE_TAG_OPEN: &str = "<Cube";
 const DIM_TAG_OPEN: &str = "<Dimension";
+const VIRTUALCUBE_TAG_OPEN: &str = r#"<VirtualCube"#;
 
 
 /// Struct to hold the results of parsing
@@ -60,6 +61,7 @@ pub struct Fragment<'a> {
     schema_name: Option<&'a str>,
     shared_dims: Option<&'a str>,
     cubes: Option<&'a str>,
+    virtual_cubes: Option<&'a str>,
 }
 
 impl<'a> Fragment<'a> {
@@ -128,7 +130,22 @@ impl<'a> Fragment<'a> {
         fragment.find(CUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
-                    .find(SCHEMA_TAG_CLOSE).or(Some(fragment.len()-i))
+                    .find(VIRTUALCUBE_TAG_OPEN)
+                    .or_else(|| fragment[i..].find(SCHEMA_TAG_CLOSE))
+                    .or(Some(fragment.len()-i)) // eof
+                    .and_then(|j| {
+                        fragment.get(i..i+j)
+                    })
+            })
+    }
+
+    // Get virtual cubes from one fragment
+    fn get_virtual_cubes(fragment: &'a str) -> Option<&'a str> {
+        fragment.find(VIRTUALCUBE_TAG_OPEN)
+            .and_then(|i| {
+                fragment[i..]
+                    .find(SCHEMA_TAG_CLOSE)
+                    .or(Some(fragment.len()-i)) // eof
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
@@ -141,11 +158,13 @@ impl<'a> Fragment<'a> {
         let schema_name = Fragment::get_schema_name(fragment);
         let shared_dims = Fragment::get_shared_dims(fragment);
         let cubes = Fragment::get_cubes(fragment);
+        let virtual_cubes = Fragment::get_virtual_cubes(fragment);
 
         Fragment {
             schema_name: schema_name,
             shared_dims: shared_dims,
             cubes: cubes,
+            virtual_cubes: virtual_cubes,
         }
     }
 }
@@ -201,6 +220,11 @@ pub fn fragments_to_schema(fragments: &[String]) -> Result<String> {
     for frag in &fragments {
         if let Some(cubes) = frag.cubes {
             final_schema.push_str(cubes);
+        }
+    }
+    for frag in &fragments {
+        if let Some(virtual_cubes) = frag.virtual_cubes {
+            final_schema.push_str(virtual_cubes);
         }
     }
 
@@ -266,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_get_cubes() {
-        let fragment = r#"<Cube name="a"></Cube>"#;
+        let fragment = r#"<Cube name="a"></Cube><VirtualCube name="vc1"></VirtualCube>"#;
         assert_eq!(
             Fragment::get_cubes(fragment),
             Some(r#"<Cube name="a"></Cube>"#)
@@ -280,15 +304,31 @@ mod tests {
     }
 
     #[test]
+    fn test_get_virtual_cubes() {
+        let fragment = r#"<Cube name="a"></Cube><VirtualCube name="vc1"></VirtualCube>"#;
+        assert_eq!(
+            Fragment::get_virtual_cubes(fragment),
+            Some(r#"<VirtualCube name="vc1"></VirtualCube>"#)
+        );
+
+        let fragment = r#"<Schema name="s1"><VirtualCube name="vc1"></VirtualCube></Schema>"#;
+        assert_eq!(
+            Fragment::get_virtual_cubes(fragment),
+            Some(r#"<VirtualCube name="vc1"></VirtualCube>"#)
+        );
+    }
+
+    #[test]
     fn test_process_fragment() {
         let fragment = r#"<Schema name="testname">
-            <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#;
+            <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
         assert_eq!(
             Fragment::process_fragment(fragment),
             Fragment {
                 schema_name: Some("testname"),
                 shared_dims: Some(r#"<Dimension name="shareddim"></Dimension>"#),
                 cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
+                virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
             }
         );
     }
