@@ -130,7 +130,9 @@ impl<'a> Fragment<'a> {
         fragment.find(CUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
-                    .find(SCHEMA_TAG_CLOSE).or(Some(fragment.len()-i))
+                    .find(VIRTUALCUBE_TAG_OPEN)
+                    .or_else(|| fragment[i..].find(SCHEMA_TAG_CLOSE))
+                    .or(Some(fragment.len()-i)) // eof
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
@@ -142,7 +144,8 @@ impl<'a> Fragment<'a> {
         fragment.find(VIRTUALCUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
-                    .find(SCHEMA_TAG_CLOSE).or(Some(fragment.len()-i))
+                    .find(SCHEMA_TAG_CLOSE)
+                    .or(Some(fragment.len()-i)) // eof
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
@@ -302,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_get_virtual_cubes() {
-        let fragment = r#"<VirtualCube name="vc1"></VirtualCube>"#;
+        let fragment = r#"<Cube name="a"></Cube><VirtualCube name="vc1"></VirtualCube>"#;
         assert_eq!(
             Fragment::get_virtual_cubes(fragment),
             Some(r#"<VirtualCube name="vc1"></VirtualCube>"#)
