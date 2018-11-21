@@ -18,7 +18,24 @@ As of now, the logic is pretty simple, just finding the approriate chunks of tex
 
 A future implementation may or may not parse the xml, depending on future needs.
 
+## Installation
+
+Check the [releases](https://github.com/hwchen/mondrian-schema-cat/releases) page.
+
+Download for your architecture (currently OSX or Linux), unzip.
+
+If necessary, don't forget to add permission to execute: `chmod +x moncat`
+
 ## Use
+
+Run:
+```
+$ moncat -d schemas/ -o schema.xml
+```
+```
+$ moncat frag1.xml frag2.xml -o schema.xml
+```
+## Dev
 
 Install rust from [rustup](rustup.rs).
 
@@ -33,13 +50,11 @@ Install utility:
 $ cargo install
 ```
 
-Run:
+build:
 ```
-$ moncat -d schemas/ -o schema.xml
+$ cargo build
 ```
-```
-$ moncat frag1.xml frag2.xml -o schema.xml
-```
+
 ## License
 
 Licensed under either of
