@@ -162,28 +162,10 @@ impl<'a> Fragment<'a> {
     pub fn process_fragment(fragment: &'a str) -> Result<Fragment<'a>> {
         // TODO make this work with string parse fn?
 
-        let schema_name;
-        let shared_dims;
-        let cubes;
-        let virtual_cubes;
-
-        match Fragment::get_schema_name(fragment) {
-            Ok(sn) => schema_name = sn,
-            Err(e) => return Err(e)
-        };
-        match Fragment::get_shared_dims(fragment) {
-            Ok(sd) => shared_dims = sd,
-            Err(e) => return Err(e)
-        };
-        match Fragment::get_cubes(fragment) {
-            Ok(c) => cubes = c,
-            Err(e) => return Err(e)
-        };
-        match Fragment::get_virtual_cubes(fragment) {
-            Ok(vc) => virtual_cubes = vc,
-            Err(e) => return Err(e)
-        };
-
+        let schema_name = Fragment::get_schema_name(fragment)?;
+        let shared_dims = Fragment::get_shared_dims(fragment)?;
+        let cubes = Fragment::get_cubes(fragment)?;
+        let virtual_cubes = Fragment::get_virtual_cubes(fragment)?;
         Ok(Fragment {
             schema_name: schema_name,
             shared_dims: shared_dims,
