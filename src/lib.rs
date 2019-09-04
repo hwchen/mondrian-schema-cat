@@ -50,6 +50,7 @@ const SCHEMA_TAG_OPEN: &str = r#"<Schema name=""#;
 const SCHEMA_TAG_CLOSE: &str = r#"</Schema>"#;
 const CUBE_TAG_OPEN: &str = "<Cube";
 const SHAREDDIM_TAG_OPEN: &str = "<SharedDimension";
+const DIM_TAG_OPEN: &str = "<Dimension";
 const VIRTUALCUBE_TAG_OPEN: &str = r#"<VirtualCube"#;
 
 
@@ -86,25 +87,41 @@ impl<'a> Fragment<'a> {
     fn get_shared_dims(fragment: &'a str) -> Result<Option<&'a str>> {
         // Finds the location of the first encount of the tag SharedDimension
         // If the first occurence is after the cube/ virtualcube will return an error
-        let temp = fragment
-            .find(SHAREDDIM_TAG_OPEN)
-            .and_then(|i| {
-                fragment[i..]
-                    .find(CUBE_TAG_OPEN)
-                    .or_else(|| fragment[i..].find(VIRTUALCUBE_TAG_OPEN))
-                    .or_else(|| fragment[i..].find(SCHEMA_TAG_CLOSE))
-                    .or(Some(fragment.len()-i))
-                    .and_then(|j|{
-                        match fragment[..j].find(CUBE_TAG_OPEN).or_else(|| fragment[..j].find(VIRTUALCUBE_TAG_OPEN)){
-                            Some(_) =>{
-                                Some("-11")  // Falg used for Raising an error if the sahred dimension is defined between the cubes or at the end of the cubes
+        let temp;
+        if let Some(cube_index) = fragment.find(SHAREDDIM_TAG_OPEN) {
+            temp = fragment
+                .find(SHAREDDIM_TAG_OPEN)
+                .and_then(|i| {
+                    fragment[i..]
+                        .find(CUBE_TAG_OPEN)
+                        .or_else(|| fragment[i..].find(VIRTUALCUBE_TAG_OPEN))
+                        .or_else(|| fragment[i..].find(SCHEMA_TAG_CLOSE))
+                        .or(Some(fragment.len()-i))
+                        .and_then(|j|{
+                            match fragment[..j].find(CUBE_TAG_OPEN).or_else(|| fragment[..j].find(VIRTUALCUBE_TAG_OPEN)){
+                                Some(_) =>{
+                                    Some("-11")  // Falg used for Raising an error if the sahred dimension is defined between the cubes or at the end of the cubes
+                                }
+                                None => {
+                                    fragment.get(i..i+j)
+                                }
                             }
-                            None => {
-                                fragment.get(i..i+j)
-                            }
-                        }
-                    })
-            });
+                        })
+                });
+        } else {
+            temp = fragment
+                .find(CUBE_TAG_OPEN)
+                .or_else(|| fragment.find(VIRTUALCUBE_TAG_OPEN))
+                .or_else(|| fragment.find(SCHEMA_TAG_CLOSE))
+                .or(Some(fragment.len()))
+                .and_then(|i| {
+                    fragment[..i]
+                        .find(DIM_TAG_OPEN)
+                        .and_then(|j|{
+                            fragment.get(j..i)
+                        })
+                });
+        }
         if temp != Some("-11"){
             Ok(temp)
         } else {
@@ -285,10 +302,10 @@ mod tests {
 
         // Test only shared dims, both with and without schema tag
         let fragment = r#"<Schema name="test">
-            <SharedDimension name="a"></SharedDimension></Schema>"#;
+            <Dimension name="a"></Dimension></Schema>"#;
         assert_eq!(
             Fragment::get_shared_dims(fragment).unwrap(),
-            Some(r#"<SharedDimension name="a"></SharedDimension>"#)
+            Some(r#"<Dimension name="a"></Dimension>"#)
         );
 
         let fragment = r#"<SharedDimension name="a"></SharedDimension>"#;
@@ -331,12 +348,12 @@ mod tests {
     #[test]
     fn test_process_fragment() {
         let fragment = r#"<Schema name="testname">
-            <SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
+            <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
         assert_eq!(
             Fragment::process_fragment(fragment).unwrap(),
             Fragment {
                 schema_name: Some("testname"),
-                shared_dims: Some(r#"<SharedDimension name="shareddim"></SharedDimension>"#),
+                shared_dims: Some(r#"<Dimension name="shareddim"></Dimension>"#),
                 cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
                 virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
             }
@@ -372,12 +389,12 @@ mod tests {
         );
 
         // Now multiple
-        let f1 = r#"<Schema name="testname"><SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
-        let f2 = r#"<SharedDimension name="shareddim2"></SharedDimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
+        let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
         let fragments = vec![f1, f2];
         assert_eq!(
             fragments_to_schema(&fragments).unwrap(),
-            "<Schema name=\"testname\">\n<SharedDimension name=\"shareddim\"></SharedDimension><SharedDimension name=\"shareddim2\"></SharedDimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
+            "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Dimension name=\"shareddim2\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
         );
     }
 }
