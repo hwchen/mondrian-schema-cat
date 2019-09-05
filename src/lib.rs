@@ -260,12 +260,19 @@ mod tests {
             <Cube name="testcube"></Cube></Schema>"#;
         assert_eq!(Fragment::get_shared_dims(fragment).unwrap(), None);
 
-        // gets shared dims before cubes
+        // gets shareddims tag and dims tag  before cubes
         let fragment = r#"<Schema name="testname">
             <SharedDimension></SharedDimension><Cube name="testcube"></Cube></Schema>"#;
         assert_eq!(
             Fragment::get_shared_dims(fragment).unwrap(),
             Some("<SharedDimension></SharedDimension>")
+        );
+
+        let fragment = r#"<Schema name="testname">
+            <Dimension></Dimension><Cube name="testcube"></Cube></Schema>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some("<Dimension></Dimension>")
         );
 
         // does not get internal dims within cube
@@ -290,10 +297,23 @@ mod tests {
             Some(r#"<Dimension name="a"></Dimension>"#)
         );
 
+        let fragment = r#"<Schema name="test">
+            <SharedDimension name="a"></SharedDimension></Schema>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some(r#"<SharedDimension name="a"></SharedDimension>"#)
+        );
+
         let fragment = r#"<SharedDimension name="a"></SharedDimension>"#;
         assert_eq!(
             Fragment::get_shared_dims(fragment).unwrap(),
             Some(r#"<SharedDimension name="a"></SharedDimension>"#)
+        );
+
+        let fragment = r#"<Dimension name="a"></Dimension>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some(r#"<Dimension name="a"></Dimension>"#)
         );
     }
 
@@ -343,6 +363,21 @@ mod tests {
     }
 
     #[test]
+    fn test_process_fragment_shareddimension() {
+        let fragment = r#"<Schema name="testname">
+            <SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
+        assert_eq!(
+            Fragment::process_fragment(fragment).unwrap(),
+            Fragment {
+                schema_name: Some("testname"),
+                shared_dims: Some(r#"<SharedDimension name="shareddim"></SharedDimension>"#),
+                cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
+                virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
+            }
+        );
+    }
+
+    #[test]
     #[should_panic]
     fn test_fragments_to_schema_empty() {
         fragments_to_schema(&vec!["".to_owned()]).unwrap();
@@ -370,7 +405,22 @@ mod tests {
             "<Schema name=\"testname\">\n<SharedDimension name=\"shareddim\"></SharedDimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube>\n</Schema>"
         );
 
+        let fragment = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let fragments = vec![fragment];
+        assert_eq!(
+            fragments_to_schema(&fragments).unwrap(),
+            "<Schema name=\"testname\">\n<Dimension name=\"shareddim\"></Dimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube>\n</Schema>"
+        );
+
         // Now multiple
+        let f1 = r#"<Schema name="testname"><SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let f2 = r#"<SharedDimension name="shareddim2"></SharedDimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
+        let fragments = vec![f1, f2];
+        assert_eq!(
+            fragments_to_schema(&fragments).unwrap(),
+            "<Schema name=\"testname\">\n<SharedDimension name=\"shareddim\"></SharedDimension><SharedDimension name=\"shareddim2\"></SharedDimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
+        );
+
         let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
         let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
         let fragments = vec![f1, f2];
