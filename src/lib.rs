@@ -70,7 +70,7 @@ impl<'a> Fragment<'a> {
     /// None if there's no Schema tags
     /// Takes first schema tag and first name attr
     fn get_schema_name(fragment: &'a str) -> Result<Option<&'a str>> {
-        let temp = fragment
+        let res = fragment
             .find(SCHEMA_TAG_OPEN)
             .map(|i| i + SCHEMA_TAG_OPEN.len())
             .and_then(|i| {
@@ -80,16 +80,16 @@ impl<'a> Fragment<'a> {
                         fragment.get(i..i+j)
                     })
             });
-        Ok(temp)
+        Ok(res)
     }
 
     /// Get shared dims from one fragment
     fn get_shared_dims(fragment: &'a str) -> Result<Option<&'a str>> {
         // Finds the location of the first encount of the tag SharedDimension
         // If the first occurence is after the cube/ virtualcube will return an error
-        let temp;
+        let res;
         if let Some(cube_index) = fragment.find(SHAREDDIM_TAG_OPEN) {
-            temp = fragment
+            res = fragment
                 .find(SHAREDDIM_TAG_OPEN)
                 .and_then(|i| {
                     fragment[i..]
@@ -109,7 +109,7 @@ impl<'a> Fragment<'a> {
                         })
                 });
         } else {
-            temp = fragment
+            res = fragment
                 .find(CUBE_TAG_OPEN)
                 .or_else(|| fragment.find(VIRTUALCUBE_TAG_OPEN))
                 .or_else(|| fragment.find(SCHEMA_TAG_CLOSE))
@@ -122,8 +122,8 @@ impl<'a> Fragment<'a> {
                         })
                 });
         }
-        if temp != Some("-11"){
-            Ok(temp)
+        if res != Some("-11"){
+            Ok(res)
         } else {
             return Err("Shared Dimension is in the wrong place".into())  // if the flag value is raised we generate an error in the program
         }
@@ -132,7 +132,7 @@ impl<'a> Fragment<'a> {
     // Get cubes from one fragment
     fn get_cubes(fragment: &'a str) -> Result<Option<&'a str>> {
         // println!("{}", fragment.find(CUBE_TAG_CLOSE).unwrap());
-        let temp = fragment.find(CUBE_TAG_OPEN)
+        let res = fragment.find(CUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
                     .find(VIRTUALCUBE_TAG_OPEN)
@@ -142,12 +142,12 @@ impl<'a> Fragment<'a> {
                         fragment.get(i..i+j)
                     })
             });
-        Ok(temp)
+        Ok(res)
     }
 
     // Get virtual cubes from one fragment
     fn get_virtual_cubes(fragment: &'a str) -> Result<Option<&'a str>> {
-        let temp = fragment.find(VIRTUALCUBE_TAG_OPEN)
+        let res = fragment.find(VIRTUALCUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
                     .find(SCHEMA_TAG_CLOSE)
@@ -156,7 +156,7 @@ impl<'a> Fragment<'a> {
                         fragment.get(i..i+j)
                     })
             });
-        Ok(temp)
+        Ok(res)
     }
 
     pub fn process_fragment(fragment: &'a str) -> Result<Fragment<'a>> {
