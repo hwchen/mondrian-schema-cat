@@ -260,6 +260,9 @@ mod tests {
             <Cube name="testcube"></Cube></Schema>"#;
         assert_eq!(Fragment::get_shared_dims(fragment).unwrap(), None);
 
+        // having separate test cases for the Dimension tag and SharedDimension tag
+        // is to be able to support the existing Mondrian Schema which have the Dimension tag.
+        // Whereas moving forward we can use SharedDimension tags to define SharedDimension in the schmeas
         // gets shareddims tag and dims tag  before cubes
         let fragment = r#"<Schema name="testname">
             <SharedDimension></SharedDimension><Cube name="testcube"></Cube></Schema>"#;
