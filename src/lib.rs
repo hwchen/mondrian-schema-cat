@@ -43,13 +43,13 @@
 extern crate error_chain;
 
 pub mod error;
-
 use error::*;
 
 // I assume tags follow the convention of CamelCase
 const SCHEMA_TAG_OPEN: &str = r#"<Schema name=""#;
 const SCHEMA_TAG_CLOSE: &str = r#"</Schema>"#;
 const CUBE_TAG_OPEN: &str = "<Cube";
+const SHAREDDIM_TAG_OPEN: &str = "<SharedDimension";
 const DIM_TAG_OPEN: &str = "<Dimension";
 const VIRTUALCUBE_TAG_OPEN: &str = r#"<VirtualCube"#;
 
@@ -69,8 +69,8 @@ impl<'a> Fragment<'a> {
     /// Get the Schema name from one fragment
     /// None if there's no Schema tags
     /// Takes first schema tag and first name attr
-    fn get_schema_name(fragment: &'a str) -> Option<&'a str> {
-        fragment
+    fn get_schema_name(fragment: &'a str) -> Result<Option<&'a str>> {
+        let res = fragment
             .find(SCHEMA_TAG_OPEN)
             .map(|i| i + SCHEMA_TAG_OPEN.len())
             .and_then(|i| {
@@ -79,55 +79,60 @@ impl<'a> Fragment<'a> {
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
-            })
+            });
+        Ok(res)
     }
 
     /// Get shared dims from one fragment
-    fn get_shared_dims(fragment: &'a str) -> Option<&'a str> {
-        // Return everything between first Dim tag and first
-        // Cube tag.
-        //
-        // To make sure that don't get internal dims which
-        // happen to have a Cube tag after, need to make
-        // sure that there isn't a Cube tag before the
-        // dim tag.
-
-        if let Some(first_cube_idx) = fragment.find(CUBE_TAG_OPEN) {
-            // if there's a cube tag, get from dim_open_tag to cube tag,
-            // as long as it's not an internal dim.
-            fragment
-                .find(DIM_TAG_OPEN)
+    fn get_shared_dims(fragment: &'a str) -> Result<Option<&'a str>> {
+        // Finds the location of the first encount of the tag SharedDimension
+        // If the first occurence is after the cube/ virtualcube will return an error
+        let res;
+        if let Some(cube_index) = fragment.find(SHAREDDIM_TAG_OPEN) {
+            res = fragment
+                .find(SHAREDDIM_TAG_OPEN)
                 .and_then(|i| {
                     fragment[i..]
                         .find(CUBE_TAG_OPEN)
-                        .and_then(|j| {
-                            // if this cube tag idx is the
-                            // first cube idx, then it means that
-                            // the dims are shared, so get frag.
-                            // Otherwise it's an internal  dim.
-                            if i+j == first_cube_idx {
-                                fragment.get(i..i+j)
-                            } else {
-                                None
+                        .or_else(|| fragment[i..].find(VIRTUALCUBE_TAG_OPEN))
+                        .or_else(|| fragment[i..].find(SCHEMA_TAG_CLOSE))
+                        .or(Some(fragment.len()-i))
+                        .and_then(|j|{
+                            match fragment[..j].find(CUBE_TAG_OPEN).or_else(|| fragment[..j].find(VIRTUALCUBE_TAG_OPEN)){
+                                Some(_) =>{
+                                    Some("-11")  // Falg used for Raising an error if the sahred dimension is defined between the cubes or at the end of the cubes
+                                }
+                                None => {
+                                    fragment.get(i..i+j)
+                                }
                             }
                         })
-                })
+                });
         } else {
-            // if there's no cube tag, then get from dim_open_tag to end
-            fragment.find(DIM_TAG_OPEN)
+            res = fragment
+                .find(CUBE_TAG_OPEN)
+                .or_else(|| fragment.find(VIRTUALCUBE_TAG_OPEN))
+                .or_else(|| fragment.find(SCHEMA_TAG_CLOSE))
+                .or(Some(fragment.len()))
                 .and_then(|i| {
-                    fragment[i..]
-                        .find(SCHEMA_TAG_CLOSE).or(Some(fragment.len()-i))
-                        .and_then(|j| {
-                            fragment.get(i..i+j)
+                    fragment[..i]
+                        .find(DIM_TAG_OPEN)
+                        .and_then(|j|{
+                            fragment.get(j..i)
                         })
-                })
+                });
+        }
+        if res != Some("-11"){
+            Ok(res)
+        } else {
+            return Err("Shared Dimension is in the wrong place".into())  // if the flag value is raised we generate an error in the program
         }
     }
 
     // Get cubes from one fragment
-    fn get_cubes(fragment: &'a str) -> Option<&'a str> {
-        fragment.find(CUBE_TAG_OPEN)
+    fn get_cubes(fragment: &'a str) -> Result<Option<&'a str>> {
+        // println!("{}", fragment.find(CUBE_TAG_CLOSE).unwrap());
+        let res = fragment.find(CUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
                     .find(VIRTUALCUBE_TAG_OPEN)
@@ -136,12 +141,13 @@ impl<'a> Fragment<'a> {
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
-            })
+            });
+        Ok(res)
     }
 
     // Get virtual cubes from one fragment
-    fn get_virtual_cubes(fragment: &'a str) -> Option<&'a str> {
-        fragment.find(VIRTUALCUBE_TAG_OPEN)
+    fn get_virtual_cubes(fragment: &'a str) -> Result<Option<&'a str>> {
+        let res = fragment.find(VIRTUALCUBE_TAG_OPEN)
             .and_then(|i| {
                 fragment[i..]
                     .find(SCHEMA_TAG_CLOSE)
@@ -149,29 +155,29 @@ impl<'a> Fragment<'a> {
                     .and_then(|j| {
                         fragment.get(i..i+j)
                     })
-            })
+            });
+        Ok(res)
     }
 
-    pub fn process_fragment(fragment: &'a str) -> Fragment<'a> {
+    pub fn process_fragment(fragment: &'a str) -> Result<Fragment<'a>> {
         // TODO make this work with string parse fn?
 
-        let schema_name = Fragment::get_schema_name(fragment);
-        let shared_dims = Fragment::get_shared_dims(fragment);
-        let cubes = Fragment::get_cubes(fragment);
-        let virtual_cubes = Fragment::get_virtual_cubes(fragment);
-
-        Fragment {
+        let schema_name = Fragment::get_schema_name(fragment)?;
+        let shared_dims = Fragment::get_shared_dims(fragment)?;
+        let cubes = Fragment::get_cubes(fragment)?;
+        let virtual_cubes = Fragment::get_virtual_cubes(fragment)?;
+        Ok(Fragment {
             schema_name: schema_name,
             shared_dims: shared_dims,
             cubes: cubes,
             virtual_cubes: virtual_cubes,
-        }
+        })
     }
 }
 
 /// Convenience method for turning unprocessed fragments
 /// into one schema
-pub fn fragments_to_schema(fragments: &[String]) -> Result<String> {
+pub fn fragments_to_schema(fragment: &[String]) -> Result<String> {
     // Get Schema names from all fragments
     // and check for non-duplicates (there should only
     // be one schema name). Error is returned if
@@ -182,9 +188,11 @@ pub fn fragments_to_schema(fragments: &[String]) -> Result<String> {
     // to push all cubes.
 
     // process fragments
-    let fragments: Vec<_> = fragments
-        .iter()
-        .map(|s| Fragment::process_fragment(&s)).collect();
+    let fragments: Vec<_>;
+    match fragment.iter().map(|s| Fragment::process_fragment(&s)).collect() {
+        Ok(f) => fragments = f,
+        Err(e) => return Err(e)
+    }
 
     // schema name handling
     let mut schema_name = None;
@@ -229,6 +237,7 @@ pub fn fragments_to_schema(fragments: &[String]) -> Result<String> {
     }
 
     final_schema.push_str("\n</Schema>");
+    println!("{:?}", fragments[0]);
 
     Ok(final_schema)
 }
@@ -240,22 +249,32 @@ mod tests {
     #[test]
     fn test_get_schema_name() {
         let fragment = r#"<Schema name="testname"></Schema>"#;
-        assert_eq!(Fragment::get_schema_name(fragment), Some("testname"));
+        assert_eq!(Fragment::get_schema_name(fragment).unwrap(), Some("testname"));
         let fragment = r#"<Cube name="testname"></Cube>"#;
-        assert_eq!(Fragment::get_schema_name(fragment), None);
+        assert_eq!(Fragment::get_schema_name(fragment).unwrap(), None);
     }
 
     #[test]
     fn test_get_share_dims() {
         let fragment = r#"<Schema name="testname">
             <Cube name="testcube"></Cube></Schema>"#;
-        assert_eq!(Fragment::get_shared_dims(fragment), None);
+        assert_eq!(Fragment::get_shared_dims(fragment).unwrap(), None);
 
-        // gets shared dims before cubes
+        // having separate test cases for the Dimension tag and SharedDimension tag
+        // is to be able to support the existing Mondrian Schema which have the Dimension tag.
+        // Whereas moving forward we can use SharedDimension tags to define SharedDimension in the schmeas
+        // gets shareddims tag and dims tag  before cubes
+        let fragment = r#"<Schema name="testname">
+            <SharedDimension></SharedDimension><Cube name="testcube"></Cube></Schema>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some("<SharedDimension></SharedDimension>")
+        );
+
         let fragment = r#"<Schema name="testname">
             <Dimension></Dimension><Cube name="testcube"></Cube></Schema>"#;
         assert_eq!(
-            Fragment::get_shared_dims(fragment),
+            Fragment::get_shared_dims(fragment).unwrap(),
             Some("<Dimension></Dimension>")
         );
 
@@ -269,7 +288,7 @@ mod tests {
             <Cube name="a"></Cube>
             </Schema>"#;
         assert_eq!(
-            Fragment::get_shared_dims(fragment),
+            Fragment::get_shared_dims(fragment).unwrap(),
             None
         );
 
@@ -277,13 +296,26 @@ mod tests {
         let fragment = r#"<Schema name="test">
             <Dimension name="a"></Dimension></Schema>"#;
         assert_eq!(
-            Fragment::get_shared_dims(fragment),
+            Fragment::get_shared_dims(fragment).unwrap(),
             Some(r#"<Dimension name="a"></Dimension>"#)
+        );
+
+        let fragment = r#"<Schema name="test">
+            <SharedDimension name="a"></SharedDimension></Schema>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some(r#"<SharedDimension name="a"></SharedDimension>"#)
+        );
+
+        let fragment = r#"<SharedDimension name="a"></SharedDimension>"#;
+        assert_eq!(
+            Fragment::get_shared_dims(fragment).unwrap(),
+            Some(r#"<SharedDimension name="a"></SharedDimension>"#)
         );
 
         let fragment = r#"<Dimension name="a"></Dimension>"#;
         assert_eq!(
-            Fragment::get_shared_dims(fragment),
+            Fragment::get_shared_dims(fragment).unwrap(),
             Some(r#"<Dimension name="a"></Dimension>"#)
         );
     }
@@ -292,13 +324,13 @@ mod tests {
     fn test_get_cubes() {
         let fragment = r#"<Cube name="a"></Cube><VirtualCube name="vc1"></VirtualCube>"#;
         assert_eq!(
-            Fragment::get_cubes(fragment),
+            Fragment::get_cubes(fragment).unwrap(),
             Some(r#"<Cube name="a"></Cube>"#)
         );
 
         let fragment = r#"<Schema name="b"><Cube name="a"></Cube></Schema>"#;
         assert_eq!(
-            Fragment::get_cubes(fragment),
+            Fragment::get_cubes(fragment).unwrap(),
             Some(r#"<Cube name="a"></Cube>"#)
         );
     }
@@ -307,13 +339,13 @@ mod tests {
     fn test_get_virtual_cubes() {
         let fragment = r#"<Cube name="a"></Cube><VirtualCube name="vc1"></VirtualCube>"#;
         assert_eq!(
-            Fragment::get_virtual_cubes(fragment),
+            Fragment::get_virtual_cubes(fragment).unwrap(),
             Some(r#"<VirtualCube name="vc1"></VirtualCube>"#)
         );
 
         let fragment = r#"<Schema name="s1"><VirtualCube name="vc1"></VirtualCube></Schema>"#;
         assert_eq!(
-            Fragment::get_virtual_cubes(fragment),
+            Fragment::get_virtual_cubes(fragment).unwrap(),
             Some(r#"<VirtualCube name="vc1"></VirtualCube>"#)
         );
     }
@@ -323,10 +355,25 @@ mod tests {
         let fragment = r#"<Schema name="testname">
             <Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
         assert_eq!(
-            Fragment::process_fragment(fragment),
+            Fragment::process_fragment(fragment).unwrap(),
             Fragment {
                 schema_name: Some("testname"),
                 shared_dims: Some(r#"<Dimension name="shareddim"></Dimension>"#),
+                cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
+                virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
+            }
+        );
+    }
+
+    #[test]
+    fn test_process_fragment_shareddimension() {
+        let fragment = r#"<Schema name="testname">
+            <SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube><VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube></Schema>"#;
+        assert_eq!(
+            Fragment::process_fragment(fragment).unwrap(),
+            Fragment {
+                schema_name: Some("testname"),
+                shared_dims: Some(r#"<SharedDimension name="shareddim"></SharedDimension>"#),
                 cubes: Some(r#"<Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube>"#),
                 virtual_cubes: Some(r#"<VirtualCube name="testvirtualcube"><Dimension name="inner_virtual"></Dimension></VirtualCube><VirtualCube name="a"></VirtualCube>"#),
             }
@@ -354,6 +401,13 @@ mod tests {
     #[test]
     fn test_fragments_to_schema() {
         // First make sure that feeding through just one works
+        let fragment = r#"<Schema name="testname"><SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let fragments = vec![fragment];
+        assert_eq!(
+            fragments_to_schema(&fragments).unwrap(),
+            "<Schema name=\"testname\">\n<SharedDimension name=\"shareddim\"></SharedDimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube>\n</Schema>"
+        );
+
         let fragment = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
         let fragments = vec![fragment];
         assert_eq!(
@@ -362,6 +416,14 @@ mod tests {
         );
 
         // Now multiple
+        let f1 = r#"<Schema name="testname"><SharedDimension name="shareddim"></SharedDimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
+        let f2 = r#"<SharedDimension name="shareddim2"></SharedDimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
+        let fragments = vec![f1, f2];
+        assert_eq!(
+            fragments_to_schema(&fragments).unwrap(),
+            "<Schema name=\"testname\">\n<SharedDimension name=\"shareddim\"></SharedDimension><SharedDimension name=\"shareddim2\"></SharedDimension><Cube name=\"testcube\"><Dimension name=\"inner\"></Dimension></Cube><Cube name=\"a\"></Cube><Cube name=\"cube2\"><Dimension name=\"inner2\"></Dimension></Cube><Cube name=\"b\"></Cube>\n</Schema>"
+        );
+
         let f1 = r#"<Schema name="testname"><Dimension name="shareddim"></Dimension><Cube name="testcube"><Dimension name="inner"></Dimension></Cube><Cube name="a"></Cube></Schema>"#.to_owned();
         let f2 = r#"<Dimension name="shareddim2"></Dimension><Cube name="cube2"><Dimension name="inner2"></Dimension></Cube><Cube name="b"></Cube>"#.to_owned();
         let fragments = vec![f1, f2];
